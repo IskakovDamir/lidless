@@ -22,13 +22,23 @@ has_assertion() { pmset -g assertions | grep -q 'Lidless session'; }
 daemon_state() { /usr/bin/plutil -extract state raw -o - "$SUPPORT/status.json" 2>/dev/null; }
 lidless() { open -g "lidless://$1"; }
 
+if [[ -z "${DEVELOPER_DIR:-}" ]]; then
+  XCODE="$(ls -d /Applications/Xcode*.app 2>/dev/null | head -1 || true)"
+  if [[ -n "$XCODE" ]]; then export DEVELOPER_DIR="$XCODE/Contents/Developer"; fi
+fi
+
 echo "== $(date) =="
 sw_vers | tr '\n' ' '; echo
 pmset -g batt | head -2
 
 echo; echo "== Unit tests =="
-if swift test --package-path "$ROOT" --scratch-path "$HOME/Library/Caches/lidless-test" 2>&1 | tail -5; then
+TEST_OUT="$(swift test --package-path "$ROOT" --scratch-path "$HOME/Library/Caches/lidless-test" 2>&1)"
+TEST_RC=$?
+echo "$TEST_OUT" | tail -5
+if [[ "$TEST_RC" == "0" ]]; then
   pass "swift test"
+elif echo "$TEST_OUT" | grep -q "no such module 'XCTest'"; then
+  echo "SKIP  swift test (XCTest needs the full Xcode, not only the Command Line Tools)"
 else
   failc "swift test"
 fi

@@ -18,11 +18,17 @@ step() { printf '\n== %s ==\n' "$1"; }
 fail() { printf '\nBUILD FAILED: %s\n' "$1"; exit 1; }
 trap 'fail "line $LINENO"' ERR
 
+# Use the full Xcode when it is installed, even if xcode-select points at the Command Line Tools.
+if [[ -z "${DEVELOPER_DIR:-}" ]]; then
+  XCODE="$(ls -d /Applications/Xcode*.app 2>/dev/null | head -1 || true)"
+  if [[ -n "$XCODE" ]]; then export DEVELOPER_DIR="$XCODE/Contents/Developer"; fi
+fi
+
 step "Environment"
 date
 sw_vers
-xcode-select -p
-xcodebuild -version | head -1
+echo "developer dir: ${DEVELOPER_DIR:-$(xcode-select -p)}"
+xcodebuild -version 2>/dev/null | head -1 || echo "Xcode not active, building with the Command Line Tools"
 swift --version 2>&1 | head -1
 
 cd "$ROOT"
