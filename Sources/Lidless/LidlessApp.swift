@@ -1,13 +1,18 @@
 import AppKit
-import SwiftUI
 
+/// Plain AppKit entry point. The SwiftUI App lifecycle routes URL events to scenes, and a menu bar
+/// app has none, so lidless:// links failed with error -609. NSApplication delivers them to the delegate.
 @main
-struct LidlessApp: App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
-
-    var body: some Scene {
-        // Menu bar only. LSUIElement in Info.plist keeps the app out of the Dock.
-        Settings { EmptyView() }
+@MainActor
+enum LidlessMain {
+    static func main() {
+        let app = NSApplication.shared
+        let delegate = AppDelegate()
+        app.delegate = delegate
+        app.setActivationPolicy(.accessory)
+        withExtendedLifetime(delegate) {
+            app.run()
+        }
     }
 }
 
@@ -15,20 +20,20 @@ struct LidlessApp: App {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var model: AppModel?
     private var statusItem: StatusItemController?
+    private var pendingURLs: [URL] = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        NSApp.setActivationPolicy(.accessory)
         let model = AppModel()
         self.model = model
         statusItem = StatusItemController(model: model)
-        // Registered after SwiftUI finished its own setup so this handler is the one that wins.
-        NSAppleEventManager.shared().setEventHandler(
-            self, andSelector: #selector(handleURLEvent(_:replyEvent:)),
-            forEventClass: AEEventClass(kInternetEventClass), andEventID: AEEventID(kAEGetURL))
-        if let url = pendingURL {
-            pendingURL = nil
-            receive(url)
-        }
+        let urls = pendingURLs
+        pendingURLs = []
+        urls.forEach(receive)
+    }
+
+    /// lidless:// links, delivered by NSApplication. May arrive before launch finishes.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        urls.forEach(receive)
     }
 
     /// Opening the app again (Finder, Spotlight, `open -a Lidless`) shows the window.
@@ -41,24 +46,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         model?.shutdown()
     }
 
-    private var pendingURL: URL?
-
-    @objc private func handleURLEvent(_ event: NSAppleEventDescriptor, replyEvent: NSAppleEventDescriptor) {
-        guard let text = event.paramDescriptor(forKeyword: AEKeyword(keyDirectObject))?.stringValue,
-              let url = URL(string: text) else { return }
-        receive(url)
-    }
-
-    /// Used for URLs that arrive before the handler above is installed (cold launch by URL).
-    func application(_ application: NSApplication, open urls: [URL]) {
-        urls.forEach(receive)
-    }
-
     private func receive(_ url: URL) {
-        if url.host == "show" {
-            if statusItem != nil { statusItem?.showWindow() } else { pendingURL = url }
+        guard let model, let statusItem else {
+            pendingURLs.append(url)
             return
         }
-        if let model { model.handle(url: url) } else { pendingURL = url }
+        if url.host == "show" {
+            statusItem.showWindow()
+        } else {
+            model.handle(url: url)
+        }
     }
 }
