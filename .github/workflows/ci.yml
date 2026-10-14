@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+jobs:
+  macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: swift build -c release
+      - name: Unit tests
+        run: swift test
+      - name: Bundle
+        run: |
+          bash script/build.sh --no-install
+          ditto -c -k --keepParent "$HOME/Library/Caches/lidless-build/Lidless.app" Lidless-macos.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Lidless-macos
+          path: Lidless-macos.zip
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Unit tests
+        run: dotnet test windows/tests/Lidless.Tests.csproj -c Release
+      - name: Build
+        run: dotnet build windows/src/Lidless.csproj -c Release -o out
+      - name: Smoke test
+        shell: pwsh
+        run: |
+          # The hook mode must exit 0 quickly and print nothing, even with no app running.
+          $out = '{"session_id":"ci"}' | & .\out\Lidless.exe hook release
+          if ($LASTEXITCODE -ne 0) { throw "hook exit code $LASTEXITCODE" }
+          if ($out) { throw "hook printed output: $out" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Lidless-windows
+          path: out/Lidless.exe
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [macos, windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/Lidless-macos/Lidless-macos.zip
+            dist/Lidless-windows/Lidless.exe
