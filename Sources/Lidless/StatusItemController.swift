@@ -12,6 +12,7 @@ final class StatusItemController: NSObject {
     private var subscription: AnyCancellable?
     private let idleIcon: NSImage
     private let activeIcon: NSImage
+    private var window: NSWindow?
 
     init(model: AppModel) {
         self.model = model
@@ -51,6 +52,24 @@ final class StatusItemController: NSObject {
         NSApp.activate(ignoringOtherApps: true)
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         popover.contentViewController?.view.window?.makeKey()
+    }
+
+    /// The same panel in a normal window. Used when the menu bar icon is hidden,
+    /// for example behind the notch, and the app is opened again from Finder or Spotlight.
+    func showWindow() {
+        model.popoverWillShow()
+        if window == nil {
+            let host = NSHostingController(rootView: PopoverView().environmentObject(model))
+            host.sizingOptions = [.preferredContentSize]
+            let window = NSWindow(contentViewController: host)
+            window.title = "Lidless"
+            window.styleMask = [.titled, .closable, .miniaturizable]
+            window.isReleasedWhenClosed = false
+            window.center()
+            self.window = window
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        window?.makeKeyAndOrderFront(nil)
     }
 
     private func updateButton() {

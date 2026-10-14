@@ -26,9 +26,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self, andSelector: #selector(handleURLEvent(_:replyEvent:)),
             forEventClass: AEEventClass(kInternetEventClass), andEventID: AEEventID(kAEGetURL))
         if let url = pendingURL {
-            model.handle(url: url)
             pendingURL = nil
+            receive(url)
         }
+    }
+
+    /// Opening the app again (Finder, Spotlight, `open -a Lidless`) shows the window.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        statusItem?.showWindow()
+        return false
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -49,6 +55,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func receive(_ url: URL) {
+        if url.host == "show" {
+            if statusItem != nil { statusItem?.showWindow() } else { pendingURL = url }
+            return
+        }
         if let model { model.handle(url: url) } else { pendingURL = url }
     }
 }

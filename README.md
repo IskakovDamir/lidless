@@ -20,7 +20,10 @@ Native Swift and SwiftUI. No account, no license key, no network access.
   open -g "lidless://start"                    # unlimited
   open -g "lidless://extend?minutes=30"
   open -g "lidless://stop"
+  open "lidless://show"                        # open the panel as a window
   ```
+
+  If the menu bar is crowded and the icon hides behind the notch, open Lidless again from Spotlight or Finder and the same panel appears as a window.
 
 ## Install
 
