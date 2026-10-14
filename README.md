@@ -1,8 +1,8 @@
 # Lidless
 
-A free, open source macOS menu bar app that keeps your Mac awake while agents, builds or downloads run, including with the lid closed.
+A free, open source app that keeps your laptop awake while agents, builds or downloads run, including with the lid closed.
 
-Native Swift and SwiftUI. No account, no license key, no network access.
+macOS: a native Swift and SwiftUI menu bar app. Windows: a small tray app (see [Windows](#windows)). No account, no license key, no network access.
 
 ## Features
 
@@ -24,6 +24,18 @@ Native Swift and SwiftUI. No account, no license key, no network access.
   ```
 
   If the menu bar is crowded and the icon hides behind the notch, open Lidless again from Spotlight or Finder and the same panel appears as a window.
+
+## Claude Code
+
+Turn on **Keep awake while Claude Code works**. Lidless adds four hooks to `~/.claude/settings.json` (your other settings stay as they are, and the original file is copied to `settings.json.lidless-backup` the first time):
+
+| Hook | Effect |
+| --- | --- |
+| `UserPromptSubmit` | an agent starts working: start a session if none is running |
+| `PostToolUse` | still working: refresh, at most once every 5 minutes |
+| `Stop`, `SessionEnd` | the agent finished: end the session once no other Claude Code session is working |
+
+Several Claude Code sessions can work at once; the Mac stays awake until the last one finishes. A session that goes silent for 2 hours is dropped. A session you started by hand is never ended by an agent. Closed-lid mode and the power rules apply to agent sessions too, so you can close the lid and let the agent finish.
 
 ## Install
 
@@ -72,6 +84,26 @@ Press **Remove closed-lid helper** in the menu (or run `sudo bash Resources/unin
 ## Safety notes
 
 A closed MacBook running on battery gets warm. Use a hard, ventilated surface, not a bag. Test a short session on your own Mac before leaving one unattended.
+
+## Windows
+
+`windows/` holds a tray app for Windows 10 and 11 with the same features: Timer, Until and Unlimited sessions, closed-lid mode with a closed-lid time limit, Require charger, End on low battery, Keep the display on, Start with Windows, the `lidless://` URL scheme and the Claude Code hooks.
+
+It is a single `Lidless.exe` built on .NET Framework 4.8, which every Windows 10 and 11 install already has. Download it from the [releases](../../releases) or build it:
+
+```sh
+bash script/build-windows.sh      # from macOS or Linux, needs the .NET 8 SDK
+dotnet build windows/src -c Release   # on Windows
+```
+
+How it maps to Windows:
+
+- Keeping awake uses `SetThreadExecutionState`, visible in `powercfg /requests`.
+- Closed-lid mode sets "When I close the lid" to "Do nothing" on the active power plan for the session. The previous values are journaled in `HKCU\Software\Lidless\Journal` first and restored when the session ends, by a watchdog process if the app dies, and at the next start after a crash or power loss.
+- The lid state comes from `GUID_LIDSWITCH_STATE_CHANGE`; when the closed-lid limit or a power rule ends a session with the lid shut, the PC is put to sleep.
+- Windows has no public thermal API, so the thermal guard is macOS only.
+
+The Windows version is built and unit-tested in CI but has not yet been tested by hand on real hardware. Reports are welcome.
 
 ## Credits
 
