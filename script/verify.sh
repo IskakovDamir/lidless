@@ -17,8 +17,10 @@ pass() { printf 'PASS  %s\n' "$1"; PASSED=$((PASSED + 1)); }
 failc() { printf 'FAIL  %s\n' "$1"; FAILED=$((FAILED + 1)); }
 check() { if eval "$2"; then pass "$1"; else failc "$1"; fi; }
 
-sleep_disabled() { pmset -g | awk '/SleepDisabled/ {print $2}' | grep -q '^1$'; }
-has_assertion() { pmset -g assertions | grep -q 'Lidless session'; }
+# Capture first, then match: `pmset ... | grep -q` under pipefail returns 141 when grep exits on
+# the first match while pmset is still writing, which made every positive check fail.
+sleep_disabled() { [[ "$(pmset -g | awk '/SleepDisabled/ {print $2}')" == 1 ]]; }
+has_assertion() { [[ "$(pmset -g assertions)" == *"Lidless session"* ]]; }
 daemon_state() { /usr/bin/plutil -extract state raw -o - "$SUPPORT/status.json" 2>/dev/null; }
 lidless() { open -g "lidless://$1"; }
 
@@ -37,7 +39,7 @@ TEST_RC=$?
 echo "$TEST_OUT" | tail -5
 if [[ "$TEST_RC" == "0" ]]; then
   pass "swift test"
-elif echo "$TEST_OUT" | grep -q "no such module 'XCTest'"; then
+elif [[ "$TEST_OUT" == *"no such module 'XCTest'"* ]]; then
   echo "SKIP  swift test (XCTest needs the full Xcode, not only the Command Line Tools)"
 else
   failc "swift test"
