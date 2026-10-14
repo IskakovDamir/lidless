@@ -57,6 +57,20 @@ lidless "stop"
 sleep 2
 check "assertion released after stop" "! has_assertion"
 
+echo; echo "== Claude Code hook =="
+HOOK="/Applications/Lidless.app/Contents/Resources/claude-hook.sh"
+echo '{"session_id":"verify-a","hook_event_name":"UserPromptSubmit"}' | /bin/bash "$HOOK" hold
+echo '{"session_id":"verify-b","hook_event_name":"UserPromptSubmit"}' | /bin/bash "$HOOK" hold
+sleep 3
+check "agent hold starts a session" "has_assertion"
+echo '{"session_id":"verify-a","hook_event_name":"Stop"}' | /bin/bash "$HOOK" release
+sleep 2
+check "session stays while another agent works" "has_assertion"
+echo '{"session_id":"verify-b","hook_event_name":"Stop"}' | /bin/bash "$HOOK" release
+sleep 2
+check "session ends when the last agent finishes" "! has_assertion"
+check "hook prints nothing" "[[ -z \"\$(echo '{\"session_id\":\"verify-c\"}' | /bin/bash \"$HOOK\" release)\" ]]"
+
 if [[ -f "$PLIST" ]]; then
   echo; echo "== Closed-lid session =="
   check "daemon is running" "pgrep -f dev.iskakov.lidless.daemon >/dev/null"
