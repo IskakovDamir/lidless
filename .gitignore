@@ -5,3 +5,7 @@ build.log
 verify.log
 .DS_Store
 ._*
+windows/**/bin/
+windows/**/obj/
+windows/out/
+build-windows.log
