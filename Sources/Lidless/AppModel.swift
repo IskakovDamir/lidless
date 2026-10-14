@@ -12,6 +12,8 @@ final class AppModel: ObservableObject {
         var ends: Date?
         /// Set by the URL scheme to turn closed-lid mode on or off for this session only.
         var lidOverride: Bool?
+        /// Started by Claude Code hooks; ends when the last agent lets go.
+        var startedByAgents = false
     }
 
     // MARK: Session state
@@ -22,6 +24,9 @@ final class AppModel: ObservableObject {
     /// Why the last session ended, when it did not end by the user's hand.
     @Published var lastEndReason: String?
     @Published var errorMessage: String?
+    /// Claude Code sessions currently holding the Mac awake, with their expiry.
+    @Published private(set) var agentHolds: [String: Date] = [:]
+    @Published private(set) var claudeCodeHooksInstalled = ClaudeCodeIntegration.isInstalled()
 
     // MARK: Settings
 
@@ -164,7 +169,7 @@ final class AppModel: ObservableObject {
         startSession(mode: mode, ends: plannedEnd(from: Date()), lidOverride: nil)
     }
 
-    private func startSession(mode: SessionMode, ends: Date?, lidOverride: Bool?) {
+    private func startSession(mode: SessionMode, ends: Date?, lidOverride: Bool?, byAgents: Bool = false) {
         errorMessage = nil
         lastEndReason = nil
         power = SystemState.power()
@@ -185,13 +190,46 @@ final class AppModel: ObservableObject {
             errorMessage = error.localizedDescription
             return
         }
-        session = Session(id: UUID().uuidString, mode: mode, started: started, ends: ends, lidOverride: lidOverride)
+        session = Session(id: UUID().uuidString, mode: mode, started: started, ends: ends,
+                          lidOverride: lidOverride, startedByAgents: byAgents)
         now = started
         syncLease()
     }
 
     func stop() {
+        // A manual Stop wins over agents until their next prompt.
+        agentHolds.removeAll()
         end(reason: nil)
+    }
+
+    func setClaudeCodeHooks(_ enabled: Bool) {
+        do {
+            if enabled { try ClaudeCodeIntegration.install() } else { try ClaudeCodeIntegration.uninstall() }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        claudeCodeHooksInstalled = ClaudeCodeIntegration.isInstalled()
+    }
+
+    // MARK: Agent holds
+
+    /// Called by the Claude Code hook when an agent starts or keeps working.
+    func agentHold(id: String, minutes: Int, lid: Bool?) {
+        agentHolds[id] = Date().addingTimeInterval(TimeInterval(minutes) * 60)
+        if session == nil {
+            startSession(mode: .unlimited, ends: nil, lidOverride: lid, byAgents: true)
+        }
+    }
+
+    /// Called when an agent finishes its turn or its session closes.
+    func agentRelease(id: String) {
+        agentHolds.removeValue(forKey: id)
+        endAgentSessionIfIdle(reason: "Claude Code finished, session ended.")
+    }
+
+    private func endAgentSessionIfIdle(reason: String) {
+        guard let session, session.startedByAgents, agentHolds.isEmpty else { return }
+        end(reason: reason)
     }
 
     func extend(minutes: Int = 15) {
@@ -224,6 +262,7 @@ final class AppModel: ObservableObject {
         closedLid.refresh()
         closedLid.checkForUpdate()
         openAtLogin = SMAppService.mainApp.status == .enabled
+        claudeCodeHooksInstalled = ClaudeCodeIntegration.isInstalled()
         now = Date()
     }
 
@@ -247,6 +286,13 @@ final class AppModel: ObservableObject {
             startSession(mode: minutes == nil ? .unlimited : .timer,
                          ends: minutes.map { Date().addingTimeInterval(TimeInterval($0) * 60) },
                          lidOverride: lid)
+        case "hold":
+            guard let id = value("id").flatMap(Self.sanitizedID) else { return }
+            let minutes = value("minutes").flatMap { Int($0) }.map { min(max($0, 1), 24 * 60) } ?? 120
+            agentHold(id: id, minutes: minutes, lid: value("lid").map { $0 == "1" || $0 == "true" })
+        case "release":
+            guard let id = value("id").flatMap(Self.sanitizedID) else { return }
+            agentRelease(id: id)
         case "stop":
             stop()
         case "extend":
@@ -254,6 +300,11 @@ final class AppModel: ObservableObject {
         default:
             break
         }
+    }
+
+    private static func sanitizedID(_ raw: String) -> String? {
+        let allowed = raw.filter { $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" }
+        return allowed.isEmpty ? nil : String(allowed.prefix(64))
     }
 
     // MARK: Ticking
@@ -273,6 +324,12 @@ final class AppModel: ObservableObject {
             return
         }
         if tickCount % Int(LidlessTiming.heartbeatInterval) == 0 {
+            let expired = agentHolds.filter { $0.value <= now }.map(\.key)
+            if !expired.isEmpty {
+                expired.forEach { agentHolds.removeValue(forKey: $0) }
+                endAgentSessionIfIdle(reason: "Claude Code went quiet, session ended.")
+                if self.session == nil { return }
+            }
             power = SystemState.power()
             enforcePower()
             syncLease()
