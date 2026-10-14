@@ -3,6 +3,7 @@
 # Everything is logged to build.log next to this repo so the result can be read back.
 #   bash script/build.sh            build, install, launch
 #   bash script/build.sh --no-open  build and install only
+#   bash script/build.sh --no-install  build and sign only (CI)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -66,6 +67,11 @@ step "Sign (ad-hoc)"
 codesign --force --sign - --identifier dev.iskakov.lidless.daemon "$APP/Contents/Helpers/lidlessd"
 codesign --force --sign - --identifier dev.iskakov.lidless "$APP"
 codesign --verify --strict --verbose=1 "$APP"
+
+if [[ "${1:-}" == "--no-install" ]]; then
+  printf '\nBUILD OK (not installed): %s\n' "$APP"
+  exit 0
+fi
 
 step "Install"
 pkill -x Lidless 2>/dev/null && sleep 1 || true
