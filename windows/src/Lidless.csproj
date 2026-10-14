@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    .NET Framework 4.8 ships with every Windows 10 and 11 install, so Lidless.exe is a single
+    small file with nothing else to install. It builds on Windows, macOS or Linux with the .NET SDK
+    thanks to the reference assemblies package below.
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <AssemblyName>Lidless</AssemblyName>
+    <RootNamespace>Lidless</RootNamespace>
+    <Version>0.1.0</Version>
+    <Company>Damir Iskakov</Company>
+    <Product>Lidless</Product>
+    <Description>Keeps your Windows laptop awake, even with the lid closed.</Description>
+    <Copyright>MIT License. Damir Iskakov.</Copyright>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>
