@@ -79,6 +79,10 @@ private struct ActiveSessionView: View {
 
     private var subtitle: String {
         guard let session = model.session else { return "" }
+        if session.startedByAgents {
+            let count = model.agentHolds.count
+            return count == 1 ? "Claude Code is working" : "Claude Code: \(count) sessions working"
+        }
         if let ends = session.ends {
             return "Until " + ends.formatted(date: .omitted, time: .shortened)
         }
@@ -303,6 +307,14 @@ private struct GeneralSection: View {
             Toggle("Open at login", isOn: Binding(
                 get: { model.openAtLogin },
                 set: { model.setOpenAtLogin($0) }))
+            Toggle("Keep awake while Claude Code works", isOn: Binding(
+                get: { model.claudeCodeHooksInstalled },
+                set: { model.setClaudeCodeHooks($0) }))
+            if model.claudeCodeHooksInstalled {
+                Text("Starts when you send a prompt, ends when the agent finishes. Uses the lid and power settings above.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             if model.closedLid.helper != .notInstalled {
                 Button("Remove closed-lid helper") { model.closedLid.uninstall() }
                     .buttonStyle(.link)

@@ -56,7 +56,7 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Helpers" "$APP/Contents/Resources"
 cp "$BIN/Lidless" "$APP/Contents/MacOS/Lidless"
 cp "$BIN/lidlessd" "$APP/Contents/Helpers/lidlessd"
 cp "$ROOT/Resources/Info.plist" "$APP/Contents/Info.plist"
-cp "$ROOT/Resources/install-helper.sh" "$ROOT/Resources/uninstall-helper.sh" "$APP/Contents/Resources/"
+cp "$ROOT/Resources/install-helper.sh" "$ROOT/Resources/uninstall-helper.sh" "$ROOT/Resources/claude-hook.sh" "$APP/Contents/Resources/"
 cp "$ROOT/LICENSE" "$APP/Contents/Resources/LICENSE.txt"
 if [[ -f "$ICNS" ]]; then cp "$ICNS" "$APP/Contents/Resources/Lidless.icns"; fi
 chmod +x "$APP/Contents/MacOS/Lidless" "$APP/Contents/Helpers/lidlessd"
