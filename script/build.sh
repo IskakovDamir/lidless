@@ -29,8 +29,9 @@ step "Environment"
 date
 sw_vers
 echo "developer dir: ${DEVELOPER_DIR:-$(xcode-select -p)}"
-xcodebuild -version 2>/dev/null | head -1 || echo "Xcode not active, building with the Command Line Tools"
-swift --version 2>&1 | head -1
+# sed reads to the end: `| head -1` under pipefail can SIGPIPE the writer and fail the line.
+xcodebuild -version 2>/dev/null | sed -n 1p | grep . || echo "Xcode not active, building with the Command Line Tools"
+swift --version 2>&1 | sed -n 1p
 
 cd "$ROOT"
 
