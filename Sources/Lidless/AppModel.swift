@@ -57,7 +57,7 @@ final class AppModel: ObservableObject {
     }
     @Published private(set) var openAtLogin = SMAppService.mainApp.status == .enabled
 
-    let closedLid = ClosedLidClient()
+    let closedLid: ClosedLidClient
     private let assertion = PowerAssertion()
     private var ticker: Timer?
     private var tickCount = 0
@@ -65,6 +65,7 @@ final class AppModel: ObservableObject {
     private var lidSubscription: AnyCancellable?
 
     init() {
+        closedLid = ClosedLidClient()
         // A lease left behind by a crash would be stale anyway; drop it.
         closedLid.clearLease()
         closedLid.refresh()

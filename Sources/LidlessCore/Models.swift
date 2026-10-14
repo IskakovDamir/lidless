@@ -59,8 +59,9 @@ public enum StopReason: String, Codable, Equatable, Sendable {
     /// right away instead of waiting for the next lid event.
     public var sleepsClosedMac: Bool {
         switch self {
-        case .closedLimitReached, .lowBattery, .thermal, .chargerRequired, .contactLost, .powerUnknown: true
-        case .sessionEnded, .invalidLease, .sleepSettingFailed: false
+        case .closedLimitReached, .lowBattery, .thermal, .chargerRequired, .contactLost, .powerUnknown,
+             .sessionEnded: true
+        case .invalidLease, .sleepSettingFailed: false
         }
     }
 }

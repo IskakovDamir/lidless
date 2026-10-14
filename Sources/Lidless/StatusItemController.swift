@@ -7,14 +7,18 @@ import SwiftUI
 @MainActor
 final class StatusItemController: NSObject {
     private let model: AppModel
-    private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-    private let popover = NSPopover()
+    private let item: NSStatusItem
+    private let popover: NSPopover
     private var subscription: AnyCancellable?
-    private let idleIcon = StatusIcon.make(active: false)
-    private let activeIcon = StatusIcon.make(active: true)
+    private let idleIcon: NSImage
+    private let activeIcon: NSImage
 
     init(model: AppModel) {
         self.model = model
+        item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        popover = NSPopover()
+        idleIcon = StatusIcon.make(active: false)
+        activeIcon = StatusIcon.make(active: true)
         super.init()
 
         let host = NSHostingController(rootView: PopoverView().environmentObject(model))

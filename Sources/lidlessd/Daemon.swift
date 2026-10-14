@@ -63,8 +63,14 @@ final class Daemon {
         }
 
         guard let lease else {
+            let wasApplied = JSONFile.exists(LidlessPaths.journalFile)
             restore()
             writeStatus(state: .idle)
+            // A session that ended on its own while the lid is shut: no lid event will follow, so sleep now.
+            if wasApplied && !JSONFile.exists(LidlessPaths.journalFile) && SystemState.lidClosed() == true {
+                log.notice("Session ended with the lid closed, sleeping")
+                _ = runPmset(["sleepnow"])
+            }
             return
         }
 

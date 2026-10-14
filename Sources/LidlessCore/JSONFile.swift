@@ -14,7 +14,7 @@ public enum JSONFile {
         }
         guard (info.st_mode & S_IFMT) == S_IFREG, info.st_nlink == 1 else { throw Failure.unsafe }
         if let owner, info.st_uid != owner { throw Failure.unsafe }
-        guard info.st_size <= maxBytes else { throw Failure.tooLarge }
+        guard info.st_size <= off_t(maxBytes) else { throw Failure.tooLarge }
         guard let data = FileManager.default.contents(atPath: path) else { throw Failure.unreadable }
         return try JSONDecoder().decode(T.self, from: data)
     }
