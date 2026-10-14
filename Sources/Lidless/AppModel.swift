@@ -24,8 +24,8 @@ final class AppModel: ObservableObject {
     /// Why the last session ended, when it did not end by the user's hand.
     @Published var lastEndReason: String?
     @Published var errorMessage: String?
-    /// Claude Code sessions currently holding the Mac awake, with their expiry.
-    @Published private(set) var agentHolds: [String: Date] = [:]
+    /// Claude Code sessions currently holding the Mac awake (files in AgentHolds.directory).
+    @Published private(set) var agentHolds: Set<String> = []
     @Published private(set) var claudeCodeHooksInstalled = ClaudeCodeIntegration.isInstalled()
 
     // MARK: Settings
@@ -198,7 +198,8 @@ final class AppModel: ObservableObject {
 
     func stop() {
         // A manual Stop wins over agents until their next prompt.
-        agentHolds.removeAll()
+        AgentHolds.removeAll()
+        agentHolds = []
         end(reason: nil)
     }
 
@@ -213,23 +214,29 @@ final class AppModel: ObservableObject {
 
     // MARK: Agent holds
 
-    /// Called by the Claude Code hook when an agent starts or keeps working.
-    func agentHold(id: String, minutes: Int, lid: Bool?) {
-        agentHolds[id] = Date().addingTimeInterval(TimeInterval(minutes) * 60)
-        if session == nil {
-            startSession(mode: .unlimited, ends: nil, lidOverride: lid, byAgents: true)
-        }
+    /// Called by lidless://hold. The Claude Code hook writes the file itself.
+    func agentHold(id: String) {
+        AgentHolds.add(id)
+        syncAgents()
     }
 
-    /// Called when an agent finishes its turn or its session closes.
+    /// Called by lidless://release.
     func agentRelease(id: String) {
-        agentHolds.removeValue(forKey: id)
-        endAgentSessionIfIdle(reason: "Claude Code finished, session ended.")
+        AgentHolds.remove(id)
+        syncAgents()
     }
 
-    private func endAgentSessionIfIdle(reason: String) {
-        guard let session, session.startedByAgents, agentHolds.isEmpty else { return }
-        end(reason: reason)
+    /// Starts a session when an agent begins working and ends it when the last one finishes.
+    private func syncAgents() {
+        let holds = AgentHolds.current()
+        if holds != agentHolds { agentHolds = holds }
+        if let session {
+            if session.startedByAgents && holds.isEmpty {
+                end(reason: "Claude Code finished, session ended.")
+            }
+        } else if !holds.isEmpty {
+            startSession(mode: .unlimited, ends: nil, lidOverride: nil, byAgents: true)
+        }
     }
 
     func extend(minutes: Int = 15) {
@@ -288,8 +295,7 @@ final class AppModel: ObservableObject {
                          lidOverride: lid)
         case "hold":
             guard let id = value("id").flatMap(Self.sanitizedID) else { return }
-            let minutes = value("minutes").flatMap { Int($0) }.map { min(max($0, 1), 24 * 60) } ?? 120
-            agentHold(id: id, minutes: minutes, lid: value("lid").map { $0 == "1" || $0 == "true" })
+            agentHold(id: id)
         case "release":
             guard let id = value("id").flatMap(Self.sanitizedID) else { return }
             agentRelease(id: id)
@@ -312,6 +318,7 @@ final class AppModel: ObservableObject {
     private func tick() {
         tickCount += 1
         now = Date()
+        syncAgents()
         guard let session else {
             if tickCount % 10 == 0 {
                 power = SystemState.power()
@@ -324,12 +331,6 @@ final class AppModel: ObservableObject {
             return
         }
         if tickCount % Int(LidlessTiming.heartbeatInterval) == 0 {
-            let expired = agentHolds.filter { $0.value <= now }.map(\.key)
-            if !expired.isEmpty {
-                expired.forEach { agentHolds.removeValue(forKey: $0) }
-                endAgentSessionIfIdle(reason: "Claude Code went quiet, session ended.")
-                if self.session == nil { return }
-            }
             power = SystemState.power()
             enforcePower()
             syncLease()
