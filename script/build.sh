@@ -78,6 +78,10 @@ pkill -x Lidless 2>/dev/null && sleep 1 || true
 rm -rf "$DEST"
 ditto "$APP" "$DEST"
 echo "Installed $DEST"
+# Only /Applications/Lidless.app may own lidless:// in LaunchServices, not the build copy.
+LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+"$LSREGISTER" -u "$APP" >/dev/null 2>&1 || true
+"$LSREGISTER" -f "$DEST" >/dev/null 2>&1 || true
 
 if [[ "${1:-}" != "--no-open" ]]; then
   open "$DEST"
