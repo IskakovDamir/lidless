@@ -39,9 +39,21 @@ jobs:
         shell: pwsh
         run: |
           # The hook mode must exit 0 quickly and print nothing, even with no app running.
-          $out = '{"session_id":"ci"}' | & .\out\Lidless.exe hook release
-          if ($LASTEXITCODE -ne 0) { throw "hook exit code $LASTEXITCODE" }
-          if ($out) { throw "hook printed output: $out" }
+          # Lidless.exe is a WinExe: `& exe` neither waits for it nor sets $LASTEXITCODE, so run it as a Process.
+          $psi = [System.Diagnostics.ProcessStartInfo]::new((Resolve-Path .\out\Lidless.exe).Path, 'hook release')
+          $psi.UseShellExecute = $false
+          $psi.RedirectStandardInput = $true
+          $psi.RedirectStandardOutput = $true
+          $psi.RedirectStandardError = $true
+          $p = [System.Diagnostics.Process]::Start($psi)
+          $p.StandardInput.Write('{"session_id":"ci"}')
+          $p.StandardInput.Close()
+          $out = $p.StandardOutput.ReadToEndAsync()
+          $err = $p.StandardError.ReadToEndAsync()
+          if (-not $p.WaitForExit(10000)) { $p.Kill(); throw "hook did not exit within 10 s" }
+          if ($p.ExitCode -ne 0) { throw "hook exit code $($p.ExitCode)" }
+          if ($out.Result) { throw "hook printed output: $($out.Result)" }
+          if ($err.Result) { throw "hook printed to stderr: $($err.Result)" }
       - uses: actions/upload-artifact@v4
         with:
           name: Lidless-windows
